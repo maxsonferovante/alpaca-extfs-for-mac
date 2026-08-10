@@ -1,0 +1,16 @@
+[package]
+name = "mount_ext4"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+fuser = "0.15"
+libc = "0.2"
+nix = { version = "0.29", features = ["fs", "mount"] }
+clap = { version = "4.5", features = ["derive"] }
+
+[build-dependencies]
+cc = "1.2"
+bindgen = "0.71"
+pkg-config = "0.3"
+
