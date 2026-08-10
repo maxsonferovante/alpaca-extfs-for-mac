@@ -267,7 +267,186 @@ impl Ext2FsHandle {
         }
     }
 
+    pub fn create_file(
+        &self,
+        parent_ino: u32,
+        name: &str,
+        mode: u16,
+        uid: u32,
+        gid: u32,
+    ) -> io::Result<u32> {
+        let mut new_ino: ext2_ino_t = 0;
+        let retval = unsafe {
+            ext2fs_new_inode(
+                self.fs,
+                parent_ino,
+                mode as i32,
+                ptr::null_mut(),
+                &mut new_ino,
+            )
+        };
+        if retval != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to allocate inode: {}", retval),
+            ));
+        }
+
+        unsafe {
+            ext2fs_inode_alloc_stats2(self.fs, new_ino, 1, 0);
+        }
+
+        let mut inode: ext2_inode = unsafe { std::mem::zeroed() };
+        inode.i_mode = mode | 0o100000; // regular file
+        inode.i_links_count = 1;
+        inode.i_uid = uid as u16;
+        inode.i_gid = gid as u16;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as u32;
+        inode.i_atime = now;
+        inode.i_mtime = now;
+        inode.i_ctime = now;
+
+        let retval = unsafe { ext2fs_write_inode(self.fs, new_ino, &mut inode) };
+        if retval != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to write new inode: {}", retval),
+            ));
+        }
+
+        let c_name = CString::new(name)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let retval = unsafe {
+            ext2fs_link(
+                self.fs,
+                parent_ino,
+                c_name.as_ptr(),
+                new_ino,
+                EXT2_FT_REG_FILE as i32,
+            )
+        };
+        if retval != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to link file: {}", retval),
+            ));
+        }
+
+        self.flush()?;
+        Ok(new_ino)
+    }
+
+    pub fn write_file(&self, ino: u32, offset: u64, data: &[u8]) -> io::Result<usize> {
+        let mut file: ext2_file_t = ptr::null_mut();
+        let retval = unsafe { ext2fs_file_open(self.fs, ino, EXT2_FILE_WRITE as i32, &mut file) };
+        if retval != 0 || file.is_null() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to open file for writing: {}", retval),
+            ));
+        }
+
+        if offset > 0 {
+            unsafe {
+                ext2fs_file_llseek(file, offset as u64, 0, ptr::null_mut());
+            }
+        }
+
+        let mut written: u32 = 0;
+        let write_res = unsafe {
+            ext2fs_file_write(
+                file,
+                data.as_ptr() as *const _,
+                data.len() as u32,
+                &mut written,
+            )
+        };
+
+        unsafe {
+            ext2fs_file_close(file);
+        }
+
+        if write_res != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to write file data: {}", write_res),
+            ));
+        }
+
+        self.flush()?;
+        Ok(written as usize)
+    }
+
+    pub fn unlink(&self, parent_ino: u32, name: &str) -> io::Result<()> {
+        let c_name = CString::new(name)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let retval = unsafe { ext2fs_unlink(self.fs, parent_ino, c_name.as_ptr(), 0, 0) };
+        if retval != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to unlink {}: {}", name, retval),
+            ));
+        }
+        self.flush()?;
+        Ok(())
+    }
+
+    pub fn mkdir(
+        &self,
+        parent_ino: u32,
+        name: &str,
+        mode: u16,
+        _uid: u32,
+        _gid: u32,
+    ) -> io::Result<u32> {
+        let mut new_ino: ext2_ino_t = 0;
+        let retval = unsafe {
+            ext2fs_new_inode(
+                self.fs,
+                parent_ino,
+                (mode | 0o040000) as i32,
+                ptr::null_mut(),
+                &mut new_ino,
+            )
+        };
+        if retval != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to allocate dir inode: {}", retval),
+            ));
+        }
+
+        let c_name = CString::new(name)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let retval = unsafe { ext2fs_mkdir(self.fs, parent_ino, new_ino, c_name.as_ptr()) };
+        if retval != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to mkdir {}: {}", name, retval),
+            ));
+        }
+
+        self.flush()?;
+        Ok(new_ino)
+    }
+
+    pub fn flush(&self) -> io::Result<()> {
+        let retval = unsafe { ext2fs_flush(self.fs) };
+        if retval != 0 {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to flush ext4 filesystem: {}", retval),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn close(mut self) {
+
         if !self.fs.is_null() {
             unsafe {
                 ext2fs_close(self.fs);
