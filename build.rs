@@ -25,7 +25,9 @@ fn main() {
         .allowlist_var("EXT2_.*")
         .allowlist_var("EXT3_.*")
         .allowlist_var("EXT4_.*")
+        .allowlist_var(".*_io_manager")
         .generate_comments(false)
+
         .generate()
         .expect("Unable to generate libext2fs bindings");
 
