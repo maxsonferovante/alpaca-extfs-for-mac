@@ -4,14 +4,34 @@ use std::path::PathBuf;
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let vendor_dir = manifest_dir.join("vendor").join("e2fsprogs");
-    let lib_dir = vendor_dir.join("lib");
-    let include_dir = vendor_dir.join("include");
+
+    // Tenta usar a versão instalada/atualizada via Homebrew primeiro
+    let brew_e2fs_dir = PathBuf::from("/opt/homebrew/opt/e2fsprogs");
+    let (include_dir, lib_dir) = if brew_e2fs_dir
+        .join("include")
+        .join("ext2fs")
+        .join("ext2fs.h")
+        .exists()
+    {
+        println!(
+            "cargo:warning=Using system/Homebrew e2fsprogs from {}",
+            brew_e2fs_dir.display()
+        );
+        (brew_e2fs_dir.join("include"), brew_e2fs_dir.join("lib"))
+    } else {
+        println!(
+            "cargo:warning=Using vendored e2fsprogs fallback from {}",
+            vendor_dir.display()
+        );
+        (vendor_dir.join("include"), vendor_dir.join("lib"))
+    };
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     println!("cargo:rustc-link-lib=static=ext2fs");
     println!("cargo:rustc-link-lib=static=com_err");
     println!("cargo:rustc-link-lib=static=e2p");
     println!("cargo:rustc-link-lib=static=uuid");
+
 
     println!("cargo:rerun-if-changed=build.rs");
 
