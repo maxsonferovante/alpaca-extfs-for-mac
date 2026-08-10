@@ -1,10 +1,10 @@
 use std::ffi::OsStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use libc::ENOENT;
+use libc::{EINVAL, EIO, ENOENT};
 use fuser::{
-    FileAttr, FileType, Filesystem, KernelConfig, ReplyAttr, ReplyData, ReplyDirectory,
-    ReplyEntry, ReplyOpen, Request,
+    FileAttr, FileType, Filesystem, KernelConfig, ReplyAttr, ReplyCreate, ReplyData,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyWrite, Request,
 };
 
 use crate::ext2fs::{Ext2FileAttr, Ext2FsHandle};
@@ -64,7 +64,6 @@ impl Filesystem for Ext4FuseFs {
         }
     }
 
-
     fn lookup(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
         let name_str = match name.to_str() {
             Some(s) => s,
@@ -102,7 +101,6 @@ impl Filesystem for Ext4FuseFs {
         match handle.read_dir(ino as u32) {
             Ok(entries) => {
                 if offset == 0 {
-
                     let _ = reply.add(ino, 1, FileType::Directory, ".");
                     let _ = reply.add(1, 2, FileType::Directory, "..");
                 }
@@ -148,5 +146,117 @@ impl Filesystem for Ext4FuseFs {
             Ok(data) => reply.data(&data),
             Err(_) => reply.error(ENOENT),
         }
+    }
+
+    fn create(
+        &mut self,
+        req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        _umask: u32,
+        _flags: i32,
+        reply: ReplyCreate,
+    ) {
+        let name_str = match name.to_str() {
+            Some(s) => s,
+            None => {
+                reply.error(EINVAL);
+                return;
+            }
+        };
+
+        let handle = self.handle.lock().unwrap();
+        match handle.create_file(parent as u32, name_str, mode as u16, req.uid(), req.gid()) {
+            Ok(ino) => match handle.get_attr(ino) {
+                Ok(attr) => reply.created(&TTL, &to_fuser_attr(&attr), 0, 0, 0),
+                Err(_) => reply.error(EIO),
+            },
+            Err(_) => reply.error(EIO),
+        }
+    }
+
+    fn write(
+        &mut self,
+        _req: &Request<'_>,
+        ino: u64,
+        _fh: u64,
+        offset: i64,
+        data: &[u8],
+        _write_flags: u32,
+        _flags: i32,
+        _lock_owner: Option<u64>,
+        reply: ReplyWrite,
+    ) {
+        let handle = self.handle.lock().unwrap();
+        match handle.write_file(ino as u32, offset as u64, data) {
+            Ok(written) => reply.written(written as u32),
+            Err(_) => reply.error(EIO),
+        }
+    }
+
+    fn unlink(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        let name_str = match name.to_str() {
+            Some(s) => s,
+            None => {
+                reply.error(EINVAL);
+                return;
+            }
+        };
+
+        let handle = self.handle.lock().unwrap();
+        match handle.unlink(parent as u32, name_str) {
+            Ok(_) => reply.ok(),
+            Err(_) => reply.error(EIO),
+        }
+    }
+
+    fn mkdir(
+        &mut self,
+        req: &Request<'_>,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        _umask: u32,
+        reply: ReplyEntry,
+    ) {
+        let name_str = match name.to_str() {
+            Some(s) => s,
+            None => {
+                reply.error(EINVAL);
+                return;
+            }
+        };
+
+        let handle = self.handle.lock().unwrap();
+        match handle.mkdir(parent as u32, name_str, mode as u16, req.uid(), req.gid()) {
+            Ok(ino) => match handle.get_attr(ino) {
+                Ok(attr) => reply.entry(&TTL, &to_fuser_attr(&attr), 0),
+                Err(_) => reply.error(EIO),
+            },
+            Err(_) => reply.error(EIO),
+        }
+    }
+
+    fn rmdir(&mut self, _req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        let name_str = match name.to_str() {
+            Some(s) => s,
+            None => {
+                reply.error(EINVAL);
+                return;
+            }
+        };
+
+        let handle = self.handle.lock().unwrap();
+        match handle.unlink(parent as u32, name_str) {
+            Ok(_) => reply.ok(),
+            Err(_) => reply.error(EIO),
+        }
+    }
+
+    fn flush(&mut self, _req: &Request<'_>, _ino: u64, _fh: u64, _lock_owner: u64, reply: ReplyEmpty) {
+        let handle = self.handle.lock().unwrap();
+        let _ = handle.flush();
+        reply.ok();
     }
 }
