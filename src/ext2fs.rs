@@ -38,6 +38,10 @@ pub struct Ext2FileAttr {
 }
 
 fn ext2_error_string(retval: i64, path: &Path) -> String {
+    unsafe {
+        initialize_ext2_error_table();
+    }
+
     let raw_msg = unsafe {
         let msg_ptr = error_message(retval as _);
         if !msg_ptr.is_null() {
@@ -52,18 +56,19 @@ fn ext2_error_string(retval: i64, path: &Path) -> String {
     };
 
     let path_str = path.display().to_string();
-    if retval == 2133571347 || raw_msg.contains("magic") {
-        if !path_str.contains('s') && path_str.starts_with("/dev/") {
+    if retval == 2133571347 || raw_msg.contains("magic") || raw_msg.contains("ext2 19") {
+        if path_str.starts_with("/dev/disk") && !path_str.contains('s') {
             let suggested = format!("{}s2", path_str.replace("/dev/disk", "/dev/rdisk"));
             return format!(
-                "{} - Bad magic number in superblock. You specified whole disk device '{}'. Did you mean partition '{}'?",
-                raw_msg, path_str, suggested
+                "Bad magic number in superblock! You provided whole physical disk '{}' (which contains partition tables, not an ext4 filesystem directly).\n\n==> PLEASE USE THE PARTITION DEVICE INSTEAD: 'sudo alpaca-extfs {} /Volumes/Ext4Drive'",
+                path_str, suggested
             );
         }
     }
 
     format!("{} (code: {})", raw_msg, retval)
 }
+
 
 impl Ext2FsHandle {
     pub fn open<P: AsRef<Path>>(path: P, read_only: bool) -> io::Result<Self> {

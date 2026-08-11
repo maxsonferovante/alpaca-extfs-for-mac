@@ -31,7 +31,9 @@ fn main() {
         .clang_arg(format!("-I{}", include_dir.display()))
         .allowlist_function("ext2fs_.*")
         .allowlist_function("error_message")
+        .allowlist_function("initialize_.*_error_table")
         .allowlist_type("ext2_.*")
+
 
         .allowlist_type("ext2fs_.*")
         .allowlist_var("EXT2_.*")
