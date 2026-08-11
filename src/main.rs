@@ -52,18 +52,15 @@ fn main() {
         .and_then(|n| n.to_str())
         .unwrap_or("Ext4Drive");
 
-    let mut options = vec![
-        MountOption::FSName("ext4".to_string()),
-        MountOption::Subtype("ext4".to_string()),
-        MountOption::AllowOther,
-        MountOption::CUSTOM(format!("volname={}", volname)),
-    ];
-
+    let mut options = Vec::new();
     if args.read_only {
         options.push(MountOption::RO);
     } else {
         options.push(MountOption::RW);
     }
+
+    options.push(MountOption::CUSTOM(format!("volname={}", volname)));
+
 
 
     println!("Ext4 volume mounted successfully. Press Ctrl+C to unmount.");
