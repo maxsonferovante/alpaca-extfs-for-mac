@@ -228,18 +228,21 @@ impl Ext2FsHandle {
             let ctx = &mut *(priv_data as *mut DirContext);
             let entry = &*dirent;
 
+            if entry.inode == 0 {
+                return 0;
+            }
+
             let name_len = (entry.name_len & 0xFF) as usize;
             if name_len > 0 {
                 let name_bytes = std::slice::from_raw_parts(entry.name.as_ptr() as *const u8, name_len);
-                if let Ok(name) = std::str::from_utf8(name_bytes) {
-                    if name != "." && name != ".." {
-                        let file_type = (entry.name_len >> 8) as u8;
-                        ctx.entries.push(Ext2DirEntry {
-                            inode: entry.inode,
-                            name: name.to_string(),
-                            file_type,
-                        });
-                    }
+                let name = String::from_utf8_lossy(name_bytes);
+                if name != "." && name != ".." {
+                    let file_type = (entry.name_len >> 8) as u8;
+                    ctx.entries.push(Ext2DirEntry {
+                        inode: entry.inode,
+                        name: name.into_owned(),
+                        file_type,
+                    });
                 }
             }
             0

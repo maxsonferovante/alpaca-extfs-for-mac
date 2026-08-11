@@ -185,6 +185,18 @@ impl Filesystem for Ext4FuseFs {
                 for (idx, entry) in entries.iter().enumerate().skip(start_idx) {
                     let file_type = if entry.file_type == 2 {
                         FileType::Directory
+                    } else if entry.file_type == 1 {
+                        FileType::RegularFile
+                    } else if entry.file_type == 7 {
+                        FileType::Symlink
+                    } else if let Ok(attr) = handle.get_attr(entry.inode) {
+                        if attr.is_dir {
+                            FileType::Directory
+                        } else if (attr.mode & 0o120000) == 0o120000 {
+                            FileType::Symlink
+                        } else {
+                            FileType::RegularFile
+                        }
                     } else {
                         FileType::RegularFile
                     };
