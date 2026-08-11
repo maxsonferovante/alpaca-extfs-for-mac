@@ -142,19 +142,6 @@ fn main() {
         }
     };
 
-    println!("[DIAGNOSTIC] Checking root directory (inode 2)...");
-    match handle.read_dir(2) {
-        Ok(entries) => {
-            println!("[DIAGNOSTIC] Found {} root entries:", entries.len());
-            for e in &entries {
-                println!("  -> Inode {}: '{}' (type {})", e.inode, e.name, e.file_type);
-            }
-        }
-        Err(err) => {
-            eprintln!("[DIAGNOSTIC] Error reading root dir: {}", err);
-        }
-    }
-
     let fs = if let (Some(uid), Some(gid)) = (sudo_uid, sudo_gid) {
         fuse::Ext4FuseFs::with_owner(handle, uid, gid)
     } else {
