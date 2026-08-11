@@ -35,7 +35,7 @@ The compiled self-contained binary will be placed at `./target/release/alpaca-ex
 
 ### Mounting an Ext4 Disk Partition or Image
 
-Mount an Ext4 partition (e.g. `/dev/rdisk4s2`) or a disk image file to a mount point directory:
+Mount an Ext4 partition (e.g. `/dev/rdisk4s2`) or a disk image file to a mount point directory. The driver runs as a background daemon by default, opens Finder automatically, and returns your terminal prompt immediately:
 
 ```bash
 sudo ./target/release/alpaca-extfs /dev/rdisk4s2 /Volumes/Ext4Drive
@@ -47,10 +47,20 @@ Or mount in Read-Only mode:
 sudo ./target/release/alpaca-extfs --read-only /dev/rdisk4s2 /Volumes/Ext4Drive
 ```
 
+Run in foreground for debugging:
+
+```bash
+sudo ./target/release/alpaca-extfs --foreground /dev/rdisk4s2 /Volumes/Ext4Drive
+```
+
 ### Unmounting Safely
 
 To safely unmount the drive and flush all pending Ext4 block/journal changes:
 
+```bash
+sudo ./target/release/alpaca-extfs -u /Volumes/Ext4Drive
+```
+Or using standard macOS unmount:
 ```bash
 sudo umount /Volumes/Ext4Drive
 ```

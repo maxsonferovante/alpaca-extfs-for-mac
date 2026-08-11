@@ -4,7 +4,7 @@ use std::time::Duration;
 use libc::{EINVAL, EIO, ENOENT};
 use fuser::{
     FileAttr, FileType, Filesystem, KernelConfig, ReplyAttr, ReplyCreate, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyWrite, Request,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyStatfs, ReplyWrite, Request,
 };
 
 use crate::ext2fs::{Ext2FileAttr, Ext2FsHandle};
@@ -13,17 +13,29 @@ const TTL: Duration = Duration::from_secs(1);
 
 pub struct Ext4FuseFs {
     handle: Arc<Mutex<Ext2FsHandle>>,
+    owner_uid: Option<u32>,
+    owner_gid: Option<u32>,
 }
 
 impl Ext4FuseFs {
     pub fn new(handle: Ext2FsHandle) -> Self {
         Self {
             handle: Arc::new(Mutex::new(handle)),
+            owner_uid: None,
+            owner_gid: None,
+        }
+    }
+
+    pub fn with_owner(handle: Ext2FsHandle, uid: u32, gid: u32) -> Self {
+        Self {
+            handle: Arc::new(Mutex::new(handle)),
+            owner_uid: Some(uid),
+            owner_gid: Some(gid),
         }
     }
 }
 
-fn to_fuser_attr(attr: &Ext2FileAttr) -> FileAttr {
+fn to_fuser_attr(attr: &Ext2FileAttr, owner_uid: Option<u32>, owner_gid: Option<u32>) -> FileAttr {
     let kind = if attr.is_dir {
         FileType::Directory
     } else if (attr.mode & 0o120000) == 0o120000 {
@@ -43,8 +55,8 @@ fn to_fuser_attr(attr: &Ext2FileAttr) -> FileAttr {
         kind,
         perm: (attr.mode & 0o777),
         nlink: attr.nlink,
-        uid: attr.uid,
-        gid: attr.gid,
+        uid: owner_uid.unwrap_or(attr.uid),
+        gid: owner_gid.unwrap_or(attr.gid),
         rdev: 0,
         blksize: 4096,
         flags: 0,
@@ -53,13 +65,33 @@ fn to_fuser_attr(attr: &Ext2FileAttr) -> FileAttr {
 
 impl Filesystem for Ext4FuseFs {
     fn init(&mut self, _req: &Request<'_>, _config: &mut KernelConfig) -> Result<(), i32> {
+        println!("\n==================================================");
+        println!("  Ext4 volume mounted successfully and active!");
+        println!("  You can now access files in Finder or Terminal.");
+        println!("  Press Ctrl+C to unmount cleanly when done.");
+        println!("==================================================\n");
         Ok(())
+    }
+
+    fn statfs(&mut self, _req: &Request<'_>, _ino: u64, reply: ReplyStatfs) {
+        let handle = self.handle.lock().unwrap();
+        let st = handle.statfs();
+        reply.statfs(
+            st.blocks,
+            st.bfree,
+            st.bavail,
+            st.files,
+            st.ffree,
+            st.bsize,
+            255,
+            st.frsize,
+        );
     }
 
     fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
         let handle = self.handle.lock().unwrap();
         match handle.get_attr(ino as u32) {
-            Ok(attr) => reply.attr(&TTL, &to_fuser_attr(&attr)),
+            Ok(attr) => reply.attr(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid)),
             Err(_) => reply.error(ENOENT),
         }
     }
@@ -78,7 +110,7 @@ impl Filesystem for Ext4FuseFs {
             Ok(entries) => {
                 if let Some(entry) = entries.iter().find(|e| e.name == name_str) {
                     match handle.get_attr(entry.inode) {
-                        Ok(attr) => reply.entry(&TTL, &to_fuser_attr(&attr), 0),
+                        Ok(attr) => reply.entry(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid), 0),
                         Err(_) => reply.error(ENOENT),
                     }
                 } else {
@@ -166,10 +198,12 @@ impl Filesystem for Ext4FuseFs {
             }
         };
 
+        let uid = self.owner_uid.unwrap_or_else(|| req.uid());
+        let gid = self.owner_gid.unwrap_or_else(|| req.gid());
         let handle = self.handle.lock().unwrap();
-        match handle.create_file(parent as u32, name_str, mode as u16, req.uid(), req.gid()) {
+        match handle.create_file(parent as u32, name_str, mode as u16, uid, gid) {
             Ok(ino) => match handle.get_attr(ino) {
-                Ok(attr) => reply.created(&TTL, &to_fuser_attr(&attr), 0, 0, 0),
+                Ok(attr) => reply.created(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid), 0, 0, 0),
                 Err(_) => reply.error(EIO),
             },
             Err(_) => reply.error(EIO),
@@ -228,10 +262,12 @@ impl Filesystem for Ext4FuseFs {
             }
         };
 
+        let uid = self.owner_uid.unwrap_or_else(|| req.uid());
+        let gid = self.owner_gid.unwrap_or_else(|| req.gid());
         let handle = self.handle.lock().unwrap();
-        match handle.mkdir(parent as u32, name_str, mode as u16, req.uid(), req.gid()) {
+        match handle.mkdir(parent as u32, name_str, mode as u16, uid, gid) {
             Ok(ino) => match handle.get_attr(ino) {
-                Ok(attr) => reply.entry(&TTL, &to_fuser_attr(&attr), 0),
+                Ok(attr) => reply.entry(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid), 0),
                 Err(_) => reply.error(EIO),
             },
             Err(_) => reply.error(EIO),
@@ -311,6 +347,9 @@ pub mod macos_fuse {
         )?;
 
         let mut args_vec = vec![CString::new("alpaca-extfs").unwrap()];
+        args_vec.push(CString::new("-o").unwrap());
+        args_vec.push(CString::new("allow_recursion").unwrap());
+
         for opt in options {
             let s = match opt {
                 MountOption::FSName(name) => format!("fsname={}", name),
@@ -338,7 +377,11 @@ pub mod macos_fuse {
         if chan.is_null() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                "macFUSE fuse_mount returned null channel pointer",
+                format!(
+                    "macFUSE fuse_mount failed for '{}'. If already mounted, unmount first using: 'sudo umount {}'",
+                    mountpoint.display(),
+                    mountpoint.display()
+                ),
             ));
         }
 
@@ -349,7 +392,11 @@ pub mod macos_fuse {
             }
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                "macFUSE fuse_chan_fd returned invalid file descriptor",
+                format!(
+                    "macFUSE returned invalid file descriptor for '{}'. If already mounted, unmount first using: 'sudo umount {}'",
+                    mountpoint.display(),
+                    mountpoint.display()
+                ),
             ));
         }
 

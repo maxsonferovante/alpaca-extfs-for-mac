@@ -37,6 +37,17 @@ pub struct Ext2FileAttr {
     pub is_dir: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct Ext2StatFs {
+    pub blocks: u64,
+    pub bfree: u64,
+    pub bavail: u64,
+    pub files: u64,
+    pub ffree: u64,
+    pub bsize: u32,
+    pub frsize: u32,
+}
+
 fn ext2_error_string(retval: i64, path: &Path) -> String {
     unsafe {
         initialize_ext2_error_table();
@@ -466,6 +477,39 @@ impl Ext2FsHandle {
 
         self.flush()?;
         Ok(new_ino)
+    }
+
+    pub fn statfs(&self) -> Ext2StatFs {
+        if self.fs.is_null() {
+            return Ext2StatFs {
+                blocks: 0,
+                bfree: 0,
+                bavail: 0,
+                files: 0,
+                ffree: 0,
+                bsize: 4096,
+                frsize: 4096,
+            };
+        }
+
+        unsafe {
+            let sb = (*self.fs).super_;
+            let bsize = (*self.fs).blocksize as u32;
+            let blocks = (*sb).s_blocks_count as u64;
+            let bfree = (*sb).s_free_blocks_count as u64;
+            let files = (*sb).s_inodes_count as u64;
+            let ffree = (*sb).s_free_inodes_count as u64;
+
+            Ext2StatFs {
+                blocks,
+                bfree,
+                bavail: bfree,
+                files,
+                ffree,
+                bsize,
+                frsize: bsize,
+            }
+        }
     }
 
     pub fn flush(&self) -> io::Result<()> {
