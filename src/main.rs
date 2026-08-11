@@ -60,6 +60,8 @@ fn main() {
     }
 
     options.push(MountOption::CUSTOM(format!("volname={}", volname)));
+    options.push(MountOption::CUSTOM("nonempty".to_string()));
+
 
 
 
