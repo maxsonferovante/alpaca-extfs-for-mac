@@ -10,6 +10,24 @@ use fuser::{
 use crate::ext2fs::{Ext2FileAttr, Ext2FsHandle};
 
 const TTL: Duration = Duration::from_secs(1);
+const FUSE_ROOT_ID: u64 = 1;
+const EXT2_ROOT_INO: u32 = 2;
+
+fn fuse_ino_to_ext2(ino: u64) -> u32 {
+    if ino == FUSE_ROOT_ID {
+        EXT2_ROOT_INO
+    } else {
+        ino as u32
+    }
+}
+
+fn ext2_ino_to_fuse(ino: u32) -> u64 {
+    if ino == EXT2_ROOT_INO {
+        FUSE_ROOT_ID
+    } else {
+        ino as u64
+    }
+}
 
 pub struct Ext4FuseFs {
     handle: Arc<Mutex<Ext2FsHandle>>,
@@ -51,7 +69,7 @@ fn to_fuser_attr(attr: &Ext2FileAttr, owner_uid: Option<u32>, owner_gid: Option<
     };
 
     FileAttr {
-        ino: attr.ino,
+        ino: ext2_ino_to_fuse(attr.ino as u32),
         size: attr.size,
         blocks: attr.blocks,
         atime: attr.atime,
@@ -110,8 +128,9 @@ impl Filesystem for Ext4FuseFs {
     }
 
     fn getattr(&mut self, _req: &Request<'_>, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
+        let ext2_ino = fuse_ino_to_ext2(ino);
         let handle = self.handle.lock().unwrap();
-        match handle.get_attr(ino as u32) {
+        match handle.get_attr(ext2_ino) {
             Ok(attr) => reply.attr(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid)),
             Err(_) => reply.error(ENOENT),
         }
@@ -126,8 +145,9 @@ impl Filesystem for Ext4FuseFs {
             }
         };
 
+        let ext2_parent = fuse_ino_to_ext2(parent);
         let handle = self.handle.lock().unwrap();
-        match handle.read_dir(parent as u32) {
+        match handle.read_dir(ext2_parent) {
             Ok(entries) => {
                 if let Some(entry) = entries.iter().find(|e| e.name == name_str) {
                     match handle.get_attr(entry.inode) {
@@ -150,12 +170,14 @@ impl Filesystem for Ext4FuseFs {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
+        let ext2_ino = fuse_ino_to_ext2(ino);
         let handle = self.handle.lock().unwrap();
-        match handle.read_dir(ino as u32) {
+        match handle.read_dir(ext2_ino) {
             Ok(entries) => {
                 if offset == 0 {
                     let _ = reply.add(ino, 1, FileType::Directory, ".");
-                    let _ = reply.add(1, 2, FileType::Directory, "..");
+                    let parent_ino = if ino == FUSE_ROOT_ID { FUSE_ROOT_ID } else { 1 };
+                    let _ = reply.add(parent_ino, 2, FileType::Directory, "..");
                 }
 
                 let start_idx = if offset <= 2 { 0 } else { (offset - 2) as usize };
@@ -168,7 +190,8 @@ impl Filesystem for Ext4FuseFs {
                     };
 
                     let entry_offset = (idx + 3) as i64;
-                    if reply.add(entry.inode as u64, entry_offset, file_type, &entry.name) {
+                    let fuse_entry_ino = ext2_ino_to_fuse(entry.inode);
+                    if reply.add(fuse_entry_ino, entry_offset, file_type, &entry.name) {
                         break;
                     }
                 }
@@ -194,8 +217,9 @@ impl Filesystem for Ext4FuseFs {
         _lock_owner: Option<u64>,
         reply: ReplyData,
     ) {
+        let ext2_ino = fuse_ino_to_ext2(ino);
         let handle = self.handle.lock().unwrap();
-        match handle.read_file(ino as u32, offset as u64, size as usize) {
+        match handle.read_file(ext2_ino, offset as u64, size as usize) {
             Ok(data) => reply.data(&data),
             Err(_) => reply.error(ENOENT),
         }
@@ -221,8 +245,9 @@ impl Filesystem for Ext4FuseFs {
 
         let uid = self.owner_uid.unwrap_or_else(|| req.uid());
         let gid = self.owner_gid.unwrap_or_else(|| req.gid());
+        let ext2_parent = fuse_ino_to_ext2(parent);
         let handle = self.handle.lock().unwrap();
-        match handle.create_file(parent as u32, name_str, mode as u16, uid, gid) {
+        match handle.create_file(ext2_parent, name_str, mode as u16, uid, gid) {
             Ok(ino) => match handle.get_attr(ino) {
                 Ok(attr) => reply.created(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid), 0, 0, 0),
                 Err(_) => reply.error(EIO),
@@ -243,8 +268,9 @@ impl Filesystem for Ext4FuseFs {
         _lock_owner: Option<u64>,
         reply: ReplyWrite,
     ) {
+        let ext2_ino = fuse_ino_to_ext2(ino);
         let handle = self.handle.lock().unwrap();
-        match handle.write_file(ino as u32, offset as u64, data) {
+        match handle.write_file(ext2_ino, offset as u64, data) {
             Ok(written) => reply.written(written as u32),
             Err(_) => reply.error(EIO),
         }
@@ -259,8 +285,9 @@ impl Filesystem for Ext4FuseFs {
             }
         };
 
+        let ext2_parent = fuse_ino_to_ext2(parent);
         let handle = self.handle.lock().unwrap();
-        match handle.unlink(parent as u32, name_str) {
+        match handle.unlink(ext2_parent, name_str) {
             Ok(_) => reply.ok(),
             Err(_) => reply.error(EIO),
         }
@@ -285,8 +312,9 @@ impl Filesystem for Ext4FuseFs {
 
         let uid = self.owner_uid.unwrap_or_else(|| req.uid());
         let gid = self.owner_gid.unwrap_or_else(|| req.gid());
+        let ext2_parent = fuse_ino_to_ext2(parent);
         let handle = self.handle.lock().unwrap();
-        match handle.mkdir(parent as u32, name_str, mode as u16, uid, gid) {
+        match handle.mkdir(ext2_parent, name_str, mode as u16, uid, gid) {
             Ok(ino) => match handle.get_attr(ino) {
                 Ok(attr) => reply.entry(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid), 0),
                 Err(_) => reply.error(EIO),
@@ -304,8 +332,9 @@ impl Filesystem for Ext4FuseFs {
             }
         };
 
+        let ext2_parent = fuse_ino_to_ext2(parent);
         let handle = self.handle.lock().unwrap();
-        match handle.unlink(parent as u32, name_str) {
+        match handle.unlink(ext2_parent, name_str) {
             Ok(_) => reply.ok(),
             Err(_) => reply.error(EIO),
         }
