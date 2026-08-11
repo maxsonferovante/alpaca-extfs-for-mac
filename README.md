@@ -4,7 +4,7 @@ A user-space Ext4 filesystem driver for macOS with full **Read & Write** support
 
 ---
 
-## 🚀 Features
+## Features
 
 - **Full Read/Write Support**: Open, edit, create, and delete files directly in Finder or terminal.
 - **Finder Native Integration**: Browse folders, inspect file sizes, modification dates, and permissions via POSIX macFUSE.
@@ -14,7 +14,7 @@ A user-space Ext4 filesystem driver for macOS with full **Read & Write** support
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 1. **macOS 12+**
 2. **macFUSE**: Installed on macOS (`brew install macfuse` or download from [macfuse.github.io](https://macfuse.github.io)).
@@ -22,7 +22,7 @@ A user-space Ext4 filesystem driver for macOS with full **Read & Write** support
 
 ---
 
-## 🛠️ Building
+## Building
 
 ```bash
 cargo build --release
@@ -31,7 +31,7 @@ The compiled self-contained binary will be placed at `./target/release/alpaca-ex
 
 ---
 
-## 💻 Usage
+## Usage
 
 ### Mounting an Ext4 Disk Partition or Image
 
@@ -57,7 +57,7 @@ sudo umount /Volumes/Ext4Drive
 
 ---
 
-## 🧪 Running Integration Tests
+## Running Integration Tests
 
 The project includes an end-to-end integration test that creates a 16MB loopback Ext4 disk image, performs directory creation, file creation, read/write verification, and validates disk sanity using `e2fsck`:
 
@@ -67,7 +67,7 @@ cargo test
 
 ---
 
-## 📐 Architecture
+## Architecture
 
 ```
 [ macOS Finder / VFS ]
@@ -84,4 +84,3 @@ cargo test
        ▼
  [ /dev/rdiskXsY (Raw character block device) ]
 ```
-

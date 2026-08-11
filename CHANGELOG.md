@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0] - 2026-08-10
 
-### 🚀 Added
+### Added
 - **Native Ext4 Read/Write Driver (`alpaca-extfs`)**: User-space Ext4 filesystem driver for macOS with native Finder integration via `macFUSE`.
 - **Safe Rust Wrapper (`Ext2FsHandle`)**: Encapsulates `libext2fs` C API functions for opening ext4 partitions/images, reading/writing inodes, allocating blocks, directory iteration, file streaming, and metadata inspection.
 - **Full Write Capabilities**:
@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hermetic & Deterministic Build (`build.rs`)**: Statically links vendored `libext2fs.a`, `libcom_err.a`, `libe2p.a`, and `libuuid.a` archives for zero Homebrew runtime `.dylib` dependencies.
 - **Automated Integration Test Suite**: End-to-end integration test creating a 16MB loopback Ext4 disk image via `mke2fs`, executing file/folder operations with `alpaca-extfs`, and validating raw disk sanity post-unmount with `e2fsck -fn` (100% clean check).
 
-### 🛠️ Changed
+### Changed
 - Renamed project package, binary CLI name, and crate module from `mount_ext4` to **`alpaca-extfs`**.
 
 ---
