@@ -17,11 +17,26 @@ A high-performance user-space Ext4 filesystem driver for macOS with full **Read 
 
 ---
 
+## Installation
+
+### Via Homebrew
+
+```bash
+brew install maxsonferovante/alpaca-extfs-for-mac/alpaca-extfs
+```
+
+> **Note**: `alpaca-extfs` requires **macFUSE**. If you haven't installed it yet:
+> ```bash
+> brew install --cask macfuse
+> ```
+
+---
+
 ## Prerequisites
 
 1. **macOS 12+**
-2. **macFUSE**: Installed on macOS (`brew install macfuse` or download from [macfuse.github.io](https://macfuse.github.io)).
-3. **Rust & Cargo**: Standard Rust toolchain (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`).
+2. **macFUSE**: Installed on macOS (`brew install --cask macfuse` or download from [macfuse.github.io](https://macfuse.github.io)).
+3. **Rust & Cargo** (only if building from source): Standard Rust toolchain (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`).
 
 ---
 
