@@ -1,16 +1,19 @@
 # alpaca-extfs — Ext4 Read/Write Driver for macOS
 
-A user-space Ext4 filesystem driver for macOS with full **Read & Write** support natively integrated into Finder, built with **Rust**, **macFUSE**, and Linux's official **`libext2fs`** (`e2fsprogs`).
+A high-performance user-space Ext4 filesystem driver for macOS with full **Read & Write** support natively integrated into Finder, built with **Rust**, **macFUSE**, and Linux's official **`libext2fs`** (`e2fsprogs` 1.47.4).
 
 ---
 
 ## Features
 
-- **Full Read/Write Support**: Open, edit, create, and delete files directly in Finder or terminal.
+- **Full Read/Write Support**: Open, edit, create, rename, and delete files directly in Finder or terminal.
+- **Background Daemon Mode (Default)**: Runs as a background process, automatically releasing your terminal prompt immediately after mount.
+- **Automatic Finder Launch**: Automatically opens the mounted volume location in Finder (`open /Volumes/...`) upon successful session launch.
+- **Seamless Permission Mapping**: Automatically maps file ownership to your non-root macOS account (`SUDO_USER` / `SUDO_UID` / `SUDO_GID`), eliminating `Permission denied` errors in Finder and terminal.
 - **Finder Native Integration**: Browse folders, inspect file sizes, modification dates, and permissions via POSIX macFUSE.
-- **Self-Contained Binary**: `libext2fs` C source code is vendored and compiled statically, requiring zero Homebrew dynamic library dependencies at runtime.
+- **Self-Contained Binary**: `libext2fs` C source code is vendored and compiled statically, requiring zero Homebrew dynamic C library dependencies at runtime.
 - **Data Integrity & Journal Flushing**: Concurrency safety with single-mutex lock (`Arc<Mutex<Ext2FsHandle>>`) and automatic `ext2fs_flush` on write operations.
-- **Native macOS Mount Syntax**: Compatible with `mount -t ext4` or direct `alpaca-extfs` CLI invocation.
+- **Built-in Unmount Flag (`-u`)**: Cleanly unmount volumes using `sudo alpaca-extfs -u /Volumes/Ext4Drive`.
 
 ---
 
@@ -41,16 +44,22 @@ Mount an Ext4 partition (e.g. `/dev/rdisk4s2`) or a disk image file to a mount p
 sudo ./target/release/alpaca-extfs /dev/rdisk4s2 /Volumes/Ext4Drive
 ```
 
-Or mount in Read-Only mode:
+### Options
 
+| Flag | Long Flag | Description |
+|---|---|---|
+| `-r` | `--read-only` | Mount the volume in Read-Only mode |
+| `-u <PATH>` | `--unmount <PATH>` | Safely unmount an active Ext4 volume mount point |
+| `-f` | `--foreground` | Run in foreground mode (keeps terminal attached for logs/debugging) |
+
+#### Mount in Read-Only Mode
 ```bash
 sudo ./target/release/alpaca-extfs --read-only /dev/rdisk4s2 /Volumes/Ext4Drive
 ```
 
-Run in foreground for debugging:
-
+#### Run in Foreground Mode (Debugging)
 ```bash
-sudo ./target/release/alpaca-extfs --foreground /dev/rdisk4s2 /Volumes/Ext4Drive
+sudo ./target/release/alpaca-extfs -f /dev/rdisk4s2 /Volumes/Ext4Drive
 ```
 
 ### Unmounting Safely
@@ -60,6 +69,7 @@ To safely unmount the drive and flush all pending Ext4 block/journal changes:
 ```bash
 sudo ./target/release/alpaca-extfs -u /Volumes/Ext4Drive
 ```
+
 Or using standard macOS unmount:
 ```bash
 sudo umount /Volumes/Ext4Drive
