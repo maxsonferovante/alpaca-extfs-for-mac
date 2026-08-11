@@ -6,11 +6,14 @@ class AlpacaExtfs < Formula
   license "MIT"
   head "https://github.com/maxsonferovante/alpaca-extfs-for-mac.git", branch: "master"
 
+  depends_on "pkg-config" => :build
   depends_on "rust" => :build
   depends_on :macos
-  depends_on "macfuse"
 
   def install
+    ENV.append_path "PKG_CONFIG_PATH", "/opt/homebrew/lib/pkgconfig"
+    ENV.append_path "PKG_CONFIG_PATH", "/usr/local/lib/pkgconfig"
+    ENV.append_path "PKG_CONFIG_PATH", "/Library/Filesystems/macfuse.fs/Contents/Resources/pkgconfig"
     system "cargo", "install", *std_cargo_args
   end
 
