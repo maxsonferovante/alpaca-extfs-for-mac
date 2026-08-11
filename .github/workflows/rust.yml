@@ -43,10 +43,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Generate Release Notes with Contributors
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CONTRIBUTORS=$(git log "${PREV_TAG}..${GITHUB_REF_NAME}" --format="* %an" | grep -v '\[bot\]' | sort -u)
+          else
+            CONTRIBUTORS=$(git log --format="* %an" | grep -v '\[bot\]' | sort -u)
+          fi
+
+          {
+            echo "## 👥 Contributors in this Release"
+            echo ""
+            echo "$CONTRIBUTORS"
+            echo ""
+          } > RELEASE_BODY.md
+
       - name: Create GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: RELEASE_BODY.md
           generate_release_notes: true
 
       - name: Compute Source Archive SHA256 & Update Formula
