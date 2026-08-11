@@ -46,10 +46,17 @@ fn main() {
 
     let fs = fuse::Ext4FuseFs::new(handle);
 
+    let volname = args
+        .mount_point
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Ext4Drive");
+
     let mut options = vec![
         MountOption::FSName("ext4".to_string()),
         MountOption::Subtype("ext4".to_string()),
-        MountOption::AutoUnmount,
+        MountOption::AllowOther,
+        MountOption::CUSTOM(format!("volname={}", volname)),
     ];
 
     if args.read_only {
@@ -57,6 +64,7 @@ fn main() {
     } else {
         options.push(MountOption::RW);
     }
+
 
     println!("Ext4 volume mounted successfully. Press Ctrl+C to unmount.");
     if let Err(e) = fuser::mount2(fs, &args.mount_point, &options) {
