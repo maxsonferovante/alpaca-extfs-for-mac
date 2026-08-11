@@ -65,12 +65,19 @@ fn main() {
 
 
 
+    // Carrega a extensão do macFUSE no kernel se estiver presente
+    let load_macfuse_bin = "/Library/Filesystems/macfuse.fs/Contents/Resources/load_macfuse";
+    if std::path::Path::new(load_macfuse_bin).exists() {
+        let _ = std::process::Command::new(load_macfuse_bin).status();
+    }
+
     if !args.mount_point.exists() {
         if let Err(e) = std::fs::create_dir_all(&args.mount_point) {
             eprintln!("Failed to create mount point directory '{}': {}", args.mount_point.display(), e);
             std::process::exit(1);
         }
     }
+
 
     println!("Initializing macFUSE session on '{}'...", args.mount_point.display());
 
