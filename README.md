@@ -1,4 +1,4 @@
-# mount_ext4 — Ext4 Read/Write Driver for macOS
+# alpaca-extfs — Ext4 Read/Write Driver for macOS
 
 A user-space Ext4 filesystem driver for macOS with full **Read & Write** support natively integrated into Finder, built with **Rust**, **macFUSE**, and Linux's official **`libext2fs`** (`e2fsprogs`).
 
@@ -10,7 +10,7 @@ A user-space Ext4 filesystem driver for macOS with full **Read & Write** support
 - **Finder Native Integration**: Browse folders, inspect file sizes, modification dates, and permissions via POSIX macFUSE.
 - **Self-Contained Binary**: `libext2fs` C source code is vendored and compiled statically, requiring zero Homebrew dynamic library dependencies at runtime.
 - **Data Integrity & Journal Flushing**: Concurrency safety with single-mutex lock (`Arc<Mutex<Ext2FsHandle>>`) and automatic `ext2fs_flush` on write operations.
-- **Native macOS Mount Syntax**: Compatible with `mount -t ext4` or direct `mount_ext4` CLI invocation.
+- **Native macOS Mount Syntax**: Compatible with `mount -t ext4` or direct `alpaca-extfs` CLI invocation.
 
 ---
 
@@ -27,7 +27,7 @@ A user-space Ext4 filesystem driver for macOS with full **Read & Write** support
 ```bash
 cargo build --release
 ```
-The compiled self-contained binary will be placed at `./target/release/mount_ext4`.
+The compiled self-contained binary will be placed at `./target/release/alpaca-extfs`.
 
 ---
 
@@ -38,13 +38,13 @@ The compiled self-contained binary will be placed at `./target/release/mount_ext
 Mount an Ext4 partition (e.g. `/dev/rdisk4s2`) or a disk image file to a mount point directory:
 
 ```bash
-sudo ./target/release/mount_ext4 /dev/rdisk4s2 /Volumes/Ext4Drive
+sudo ./target/release/alpaca-extfs /dev/rdisk4s2 /Volumes/Ext4Drive
 ```
 
 Or mount in Read-Only mode:
 
 ```bash
-sudo ./target/release/mount_ext4 --read-only /dev/rdisk4s2 /Volumes/Ext4Drive
+sudo ./target/release/alpaca-extfs --read-only /dev/rdisk4s2 /Volumes/Ext4Drive
 ```
 
 ### Unmounting Safely
@@ -76,7 +76,7 @@ cargo test
  [ macFUSE Kernel Extension / fuser ]
        │
        ▼
- [ mount_ext4 (Rust Driver) ]
+ [ alpaca-extfs (Rust Driver) ]
        │
        ▼
  [ libext2fs (Statically linked e2fsprogs C archive) ]
@@ -84,3 +84,4 @@ cargo test
        ▼
  [ /dev/rdiskXsY (Raw character block device) ]
 ```
+

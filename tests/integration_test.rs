@@ -2,7 +2,8 @@ use std::process::Command;
 use std::fs;
 use std::path::Path;
 
-use mount_ext4::ext2fs::Ext2FsHandle;
+use alpaca_extfs::ext2fs::Ext2FsHandle;
+
 
 #[test]
 fn test_ext4_read_write_directory_and_e2fsck_integrity() {

@@ -8,11 +8,12 @@ pub mod fuse;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "mount_ext4",
+    name = "alpaca-extfs",
     version,
     about = "Ext4 Read/Write driver for macOS integrated with Finder"
 )]
 struct Cli {
+
     /// Device path (e.g., /dev/rdisk4s2 or disk.img)
     #[arg(required = true)]
     device: PathBuf,

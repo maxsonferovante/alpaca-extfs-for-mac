@@ -1,7 +1,8 @@
 [package]
-name = "mount_ext4"
+name = "alpaca-extfs"
 version = "0.1.0"
 edition = "2021"
+
 
 [dependencies]
 fuser = "0.15"
