@@ -37,9 +37,38 @@ pub struct Ext2FileAttr {
     pub is_dir: bool,
 }
 
+fn ext2_error_string(retval: i64, path: &Path) -> String {
+    let raw_msg = unsafe {
+        let msg_ptr = error_message(retval as _);
+        if !msg_ptr.is_null() {
+            if let Ok(cstr) = std::ffi::CStr::from_ptr(msg_ptr).to_str() {
+                cstr.to_string()
+            } else {
+                format!("Error code {}", retval)
+            }
+        } else {
+            format!("Error code {}", retval)
+        }
+    };
+
+    let path_str = path.display().to_string();
+    if retval == 2133571347 || raw_msg.contains("magic") {
+        if !path_str.contains('s') && path_str.starts_with("/dev/") {
+            let suggested = format!("{}s2", path_str.replace("/dev/disk", "/dev/rdisk"));
+            return format!(
+                "{} - Bad magic number in superblock. You specified whole disk device '{}'. Did you mean partition '{}'?",
+                raw_msg, path_str, suggested
+            );
+        }
+    }
+
+    format!("{} (code: {})", raw_msg, retval)
+}
+
 impl Ext2FsHandle {
     pub fn open<P: AsRef<Path>>(path: P, read_only: bool) -> io::Result<Self> {
-        let c_path = CString::new(path.as_ref().as_os_str().as_bytes())
+        let p_ref = path.as_ref();
+        let c_path = CString::new(p_ref.as_os_str().as_bytes())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
         let flags = if read_only {
@@ -60,18 +89,19 @@ impl Ext2FsHandle {
             )
         };
 
-
         if retval != 0 || fs.is_null() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to open ext4 filesystem (error code: {})", retval),
+                format!("Failed to open ext4 filesystem: {}", ext2_error_string(retval as i64, p_ref)),
             ));
         }
+
 
         let handle = Self { fs };
         if !read_only {
             let _ = handle.read_bitmaps();
         }
+
 
         Ok(handle)
     }

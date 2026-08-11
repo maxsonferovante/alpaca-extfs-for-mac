@@ -30,7 +30,9 @@ fn main() {
         .header(include_dir.join("com_err.h").to_str().unwrap())
         .clang_arg(format!("-I{}", include_dir.display()))
         .allowlist_function("ext2fs_.*")
+        .allowlist_function("error_message")
         .allowlist_type("ext2_.*")
+
         .allowlist_type("ext2fs_.*")
         .allowlist_var("EXT2_.*")
         .allowlist_var("EXT3_.*")
