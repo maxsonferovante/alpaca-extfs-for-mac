@@ -38,6 +38,24 @@ struct Cli {
     child: bool,
 }
 
+fn is_fuse_mounted(path: &std::path::Path) -> bool {
+    use std::ffi::CString;
+    use std::mem::MaybeUninit;
+    let c_path = match CString::new(path.to_str().unwrap_or("")) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    unsafe {
+        let mut stat: MaybeUninit<libc::statfs> = MaybeUninit::uninit();
+        if libc::statfs(c_path.as_ptr(), stat.as_mut_ptr()) == 0 {
+            let stat = stat.assume_init();
+            let fstype = std::ffi::CStr::from_ptr(stat.f_fstypename.as_ptr()).to_string_lossy();
+            return fstype.contains("fuse") || fstype.contains("macfuse");
+        }
+    }
+    false
+}
+
 fn main() {
     let args = Cli::parse();
 
@@ -91,6 +109,15 @@ fn main() {
         if args.read_only {
             cmd.arg("--read-only");
         }
+        if let Ok(u) = std::env::var("SUDO_USER") {
+            cmd.env("SUDO_USER", u);
+        }
+        if let Ok(u) = std::env::var("SUDO_UID") {
+            cmd.env("SUDO_UID", u);
+        }
+        if let Ok(g) = std::env::var("SUDO_GID") {
+            cmd.env("SUDO_GID", g);
+        }
 
         let mut child_proc = match cmd.spawn() {
             Ok(c) => c,
@@ -100,7 +127,8 @@ fn main() {
             }
         };
 
-        for _ in 0..30 {
+        let mut mounted = false;
+        for _ in 0..50 {
             std::thread::sleep(std::time::Duration::from_millis(100));
             if let Ok(Some(status)) = child_proc.try_wait() {
                 if !status.success() {
@@ -108,9 +136,14 @@ fn main() {
                     std::process::exit(1);
                 }
             }
-            if mount_point.exists() {
+            if is_fuse_mounted(&mount_point) {
+                mounted = true;
                 break;
             }
+        }
+
+        if !mounted && !is_fuse_mounted(&mount_point) {
+            eprintln!("Warning: FUSE mount confirmation timed out for '{}'.", mount_point.display());
         }
 
         println!("\n✅ Ext4 volume mounted successfully at '{}'!", mount_point.display());
