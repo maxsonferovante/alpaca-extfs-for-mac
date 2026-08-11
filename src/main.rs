@@ -60,10 +60,7 @@ fn main() {
     }
 
     options.push(MountOption::CUSTOM(format!("volname={}", volname)));
-    options.push(MountOption::CUSTOM("nonempty".to_string()));
-
-
-
+    options.push(MountOption::FSName(args.device.to_string_lossy().to_string()));
 
     // Carrega a extensão do macFUSE no kernel se estiver presente
     let load_macfuse_bin = "/Library/Filesystems/macfuse.fs/Contents/Resources/load_macfuse";
@@ -78,10 +75,9 @@ fn main() {
         }
     }
 
-
     println!("Initializing macFUSE session on '{}'...", args.mount_point.display());
 
-    if let Err(e) = fuser::mount2(fs, &args.mount_point, &options) {
+    if let Err(e) = fuse::mount_filesystem(fs, &args.mount_point, &options) {
         eprintln!("\nError mounting macFUSE volume: {}", e);
         eprintln!("\n--- DIAGNOSTIC HINT ---");
         eprintln!("On macOS, macFUSE requires kernel/system extension permission.");

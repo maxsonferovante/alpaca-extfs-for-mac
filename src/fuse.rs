@@ -260,3 +260,138 @@ impl Filesystem for Ext4FuseFs {
         reply.ok();
     }
 }
+
+#[cfg(target_os = "macos")]
+pub mod macos_fuse {
+    use std::ffi::CString;
+    use std::io;
+    use std::os::fd::{FromRawFd, OwnedFd};
+    use std::path::Path;
+    use fuser::{Filesystem, MountOption, Session, SessionACL};
+
+    #[repr(C)]
+    struct FuseArgs {
+        argc: i32,
+        argv: *const *const i8,
+        allocated: i32,
+    }
+
+    #[link(name = "fuse")]
+    extern "C" {
+        fn fuse_mount(dir: *const i8, args: *const FuseArgs) -> *mut std::ffi::c_void;
+        fn fuse_chan_fd(chan: *mut std::ffi::c_void) -> i32;
+        fn fuse_unmount(dir: *const i8, chan: *mut std::ffi::c_void);
+    }
+
+    pub struct MacFuseSession {
+        target_cstring: CString,
+        chan: *mut std::ffi::c_void,
+    }
+
+    impl Drop for MacFuseSession {
+        fn drop(&mut self) {
+            if !self.chan.is_null() {
+                unsafe {
+                    fuse_unmount(self.target_cstring.as_ptr(), self.chan);
+                }
+            }
+        }
+    }
+
+    pub fn mount<FS: Filesystem, P: AsRef<Path>>(
+        filesystem: FS,
+        mountpoint: P,
+        options: &[MountOption],
+    ) -> io::Result<()> {
+        let mountpoint = mountpoint.as_ref();
+        let target = CString::new(
+            mountpoint
+                .to_str()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid mountpoint path"))?,
+        )?;
+
+        let mut args_vec = vec![CString::new("alpaca-extfs").unwrap()];
+        for opt in options {
+            let s = match opt {
+                MountOption::FSName(name) => format!("fsname={}", name),
+                MountOption::Subtype(subtype) => format!("subtype={}", subtype),
+                MountOption::CUSTOM(val) => val.clone(),
+                MountOption::RO => "ro".to_string(),
+                MountOption::RW => "rw".to_string(),
+                MountOption::AllowOther => "allow_other".to_string(),
+                MountOption::AllowRoot => "allow_root".to_string(),
+                MountOption::DefaultPermissions => "default_permissions".to_string(),
+                _ => continue,
+            };
+            args_vec.push(CString::new("-o").unwrap());
+            args_vec.push(CString::new(s).unwrap());
+        }
+
+        let argptrs: Vec<*const i8> = args_vec.iter().map(|s| s.as_ptr()).collect();
+        let fuse_args = FuseArgs {
+            argc: argptrs.len() as i32,
+            argv: argptrs.as_ptr(),
+            allocated: 0,
+        };
+
+        let chan = unsafe { fuse_mount(target.as_ptr(), &fuse_args) };
+        if chan.is_null() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "macFUSE fuse_mount returned null channel pointer",
+            ));
+        }
+
+        let raw_fd = unsafe { fuse_chan_fd(chan) };
+        if raw_fd < 0 {
+            unsafe {
+                fuse_unmount(target.as_ptr(), chan);
+            }
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "macFUSE fuse_chan_fd returned invalid file descriptor",
+            ));
+        }
+
+        let dup_fd = unsafe { libc::dup(raw_fd) };
+        if dup_fd < 0 {
+            unsafe {
+                fuse_unmount(target.as_ptr(), chan);
+            }
+            return Err(io::Error::last_os_error());
+        }
+
+        let owned_fd = unsafe { OwnedFd::from_raw_fd(dup_fd) };
+        let acl = if options.contains(&MountOption::AllowOther) {
+            SessionACL::All
+        } else if options.contains(&MountOption::AllowRoot) {
+            SessionACL::RootAndOwner
+        } else {
+            SessionACL::Owner
+        };
+
+        let _guard = MacFuseSession {
+            target_cstring: target,
+            chan,
+        };
+
+        let mut session = Session::from_fd(filesystem, owned_fd, acl);
+        session.run()
+    }
+}
+
+pub fn mount_filesystem<FS: fuser::Filesystem, P: AsRef<std::path::Path>>(
+    filesystem: FS,
+    mountpoint: P,
+    options: &[fuser::MountOption],
+) -> std::io::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        macos_fuse::mount(filesystem, mountpoint, options)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        fuser::mount2(filesystem, mountpoint, options)
+    }
+}
+
