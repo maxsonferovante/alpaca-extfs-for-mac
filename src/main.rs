@@ -53,8 +53,7 @@ fn main() {
             }
             _ => {
                 let status2 = std::process::Command::new("diskutil")
-                    .arg("unmount")
-                    .arg(&target)
+                    .args(&["unmount", "force", target.to_str().unwrap()])
                     .status();
                 if let Ok(s) = status2 {
                     if s.success() {
@@ -62,12 +61,11 @@ fn main() {
                         std::process::exit(0);
                     }
                 }
-                eprintln!(
-                    "Failed to unmount '{}'. Try: 'sudo umount {}'",
-                    target.display(),
-                    target.display()
-                );
-                std::process::exit(1);
+                let _ = std::process::Command::new("umount")
+                    .args(&["-f", target.to_str().unwrap()])
+                    .status();
+                println!("Unmount command sent for '{}'.", target.display());
+                std::process::exit(0);
             }
         }
     }
@@ -180,13 +178,6 @@ fn main() {
             eprintln!("Failed to create mount point directory '{}': {}", mount_point.display(), e);
             std::process::exit(1);
         }
-    }
-
-    if let (Some(uid), Some(gid)) = (sudo_uid, sudo_gid) {
-        let _ = std::process::Command::new("chown")
-            .arg(format!("{}:{}", uid, gid))
-            .arg(&mount_point)
-            .status();
     }
 
     if args.foreground {
