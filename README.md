@@ -27,7 +27,8 @@ A high-performance user-space Ext4 filesystem driver for macOS with full **Read 
 ### Via Homebrew
 
 ```bash
-brew install maxsonferovante/alpaca-extfs-for-mac/alpaca-extfs
+brew tap maxsonferovante/alpaca-extfs-for-mac https://github.com/maxsonferovante/alpaca-extfs-for-mac
+brew install alpaca-extfs
 ```
 
 > **Note**: `alpaca-extfs` requires **macFUSE**. If you haven't installed it yet:
