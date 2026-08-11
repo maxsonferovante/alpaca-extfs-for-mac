@@ -1,5 +1,10 @@
 # alpaca-extfs — Ext4 Read/Write Driver for macOS
 
+[![Rust CI & Release](https://github.com/maxsonferovante/alpaca-extfs-for-mac/actions/workflows/rust.yml/badge.svg)](https://github.com/maxsonferovante/alpaca-extfs-for-mac/actions/workflows/rust.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://www.apple.com/macos)
+[![Rust](https://img.shields.io/badge/rust-2021-orange.svg)](https://www.rust-lang.org)
+
 A high-performance user-space Ext4 filesystem driver for macOS with full **Read & Write** support natively integrated into Finder, built with **Rust**, **macFUSE**, and Linux's official **`libext2fs`** (`e2fsprogs` 1.47.4).
 
 ---
