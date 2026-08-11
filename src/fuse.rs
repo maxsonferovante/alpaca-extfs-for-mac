@@ -131,8 +131,15 @@ impl Filesystem for Ext4FuseFs {
         let ext2_ino = fuse_ino_to_ext2(ino);
         let handle = self.handle.lock().unwrap();
         match handle.get_attr(ext2_ino) {
-            Ok(attr) => reply.attr(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid)),
-            Err(_) => reply.error(ENOENT),
+            Ok(attr) => {
+                let f_attr = to_fuser_attr(&attr, self.owner_uid, self.owner_gid);
+                eprintln!("[FUSE getattr] ino={} (ext2={}) -> Ok(is_dir={}, size={})", ino, ext2_ino, attr.is_dir, attr.size);
+                reply.attr(&TTL, &f_attr);
+            }
+            Err(e) => {
+                eprintln!("[FUSE getattr] ino={} (ext2={}) -> Err({})", ino, ext2_ino, e);
+                reply.error(ENOENT);
+            }
         }
     }
 
@@ -147,18 +154,30 @@ impl Filesystem for Ext4FuseFs {
 
         let ext2_parent = fuse_ino_to_ext2(parent);
         let handle = self.handle.lock().unwrap();
+        eprintln!("[FUSE lookup] parent={} (ext2={}), name='{}'", parent, ext2_parent, name_str);
         match handle.read_dir(ext2_parent) {
             Ok(entries) => {
                 if let Some(entry) = entries.iter().find(|e| e.name == name_str) {
                     match handle.get_attr(entry.inode) {
-                        Ok(attr) => reply.entry(&TTL, &to_fuser_attr(&attr, self.owner_uid, self.owner_gid), 0),
-                        Err(_) => reply.error(ENOENT),
+                        Ok(attr) => {
+                            let f_attr = to_fuser_attr(&attr, self.owner_uid, self.owner_gid);
+                            eprintln!("[FUSE lookup] -> Found '{}' inode={} (ext2={})", name_str, f_attr.ino, entry.inode);
+                            reply.entry(&TTL, &f_attr, 0);
+                        }
+                        Err(e) => {
+                            eprintln!("[FUSE lookup] -> get_attr failed for '{}' (inode={}): {}", name_str, entry.inode, e);
+                            reply.error(ENOENT);
+                        }
                     }
                 } else {
+                    eprintln!("[FUSE lookup] -> Not found '{}'", name_str);
                     reply.error(ENOENT);
                 }
             }
-            Err(_) => reply.error(ENOENT),
+            Err(e) => {
+                eprintln!("[FUSE lookup] -> read_dir failed for parent={} (ext2={}): {}", parent, ext2_parent, e);
+                reply.error(ENOENT);
+            }
         }
     }
 
@@ -172,8 +191,10 @@ impl Filesystem for Ext4FuseFs {
     ) {
         let ext2_ino = fuse_ino_to_ext2(ino);
         let handle = self.handle.lock().unwrap();
+        eprintln!("[FUSE readdir] ino={} (ext2={}), offset={}", ino, ext2_ino, offset);
         match handle.read_dir(ext2_ino) {
             Ok(entries) => {
+                eprintln!("[FUSE readdir] -> read_dir(ext2={}) returned {} entries", ext2_ino, entries.len());
                 if offset == 0 {
                     let _ = reply.add(ino, 1, FileType::Directory, ".");
                     let parent_ino = if ino == FUSE_ROOT_ID { FUSE_ROOT_ID } else { 1 };
@@ -203,14 +224,19 @@ impl Filesystem for Ext4FuseFs {
 
                     let entry_offset = (idx + 3) as i64;
                     let fuse_entry_ino = ext2_ino_to_fuse(entry.inode);
+                    eprintln!("  [readdir entry] #{}: '{}' (fuse_ino={}, offset={})", idx + 1, entry.name, fuse_entry_ino, entry_offset);
                     if reply.add(fuse_entry_ino, entry_offset, file_type, &entry.name) {
+                        eprintln!("  [readdir entry] reply.add returned true (buffer full) at #{}", idx + 1);
                         break;
                     }
                 }
 
                 reply.ok();
             }
-            Err(_) => reply.error(ENOENT),
+            Err(e) => {
+                eprintln!("[FUSE readdir] -> read_dir(ext2={}) failed: {}", ext2_ino, e);
+                reply.error(ENOENT);
+            }
         }
     }
 
