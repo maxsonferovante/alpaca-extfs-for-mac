@@ -1,0 +1,42 @@
+name: Auto Open Pull Request
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - master
+      - develop
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  create-pr:
+    name: Create PR to develop
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ github.ref_name }}"
+          echo "Processing branch: $BRANCH_NAME"
+          
+          # Check if an open PR already exists for this branch targeting develop
+          EXISTING_PR=$(gh pr list --base develop --head "$BRANCH_NAME" --state open --json number -q '.[0].number')
+          
+          if [ -n "$EXISTING_PR" ]; then
+            echo "Pull Request already exists: PR #$EXISTING_PR. Skipping creation."
+          else
+            echo "No open PR found. Creating new PR targeting develop branch..."
+            gh pr create \
+              --base develop \
+              --head "$BRANCH_NAME" \
+              --title "feat: Merge $BRANCH_NAME into develop" \
+              --body "This Pull Request was automatically created by the Auto Open PR workflow upon detecting pushes to \`$BRANCH_NAME\`."
+          fi
