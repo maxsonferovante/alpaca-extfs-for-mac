@@ -59,6 +59,7 @@ jobs:
 
           echo "Updating Formula/alpaca-extfs.rb with URL: ${TARBALL_URL} and SHA256: ${SRC_SHA}"
 
+          git checkout master || git checkout -b master origin/master
           sed -i 's|url "https://github.com/[^"]*"|url "'"${TARBALL_URL}"'"|' Formula/alpaca-extfs.rb
           sed -i 's/sha256 "[^"]*"/sha256 "'"${SRC_SHA}"'"/' Formula/alpaca-extfs.rb
 
@@ -67,3 +68,4 @@ jobs:
           git add Formula/alpaca-extfs.rb
           git commit -m "chore(release): update Homebrew formula for ${GITHUB_REF_NAME}" || echo "No changes to commit"
           git push origin master
+
