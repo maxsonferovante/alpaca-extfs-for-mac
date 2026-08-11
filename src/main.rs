@@ -63,9 +63,26 @@ fn main() {
 
 
 
-    println!("Ext4 volume mounted successfully. Press Ctrl+C to unmount.");
+    if !args.mount_point.exists() {
+        if let Err(e) = std::fs::create_dir_all(&args.mount_point) {
+            eprintln!("Failed to create mount point directory '{}': {}", args.mount_point.display(), e);
+            std::process::exit(1);
+        }
+    }
+
+    println!("Initializing macFUSE session on '{}'...", args.mount_point.display());
+
     if let Err(e) = fuser::mount2(fs, &args.mount_point, &options) {
-        eprintln!("Error mounting macFUSE volume: {}", e);
+        eprintln!("\nError mounting macFUSE volume: {}", e);
+        eprintln!("\n--- DIAGNOSTIC HINT ---");
+        eprintln!("On macOS, macFUSE requires kernel/system extension permission.");
+        eprintln!("1. Open System Settings -> Privacy & Security.");
+        eprintln!("2. Scroll down to 'Security' section.");
+        eprintln!("3. Click 'Allow' to authorize the macFUSE extension if prompted.");
+        eprintln!("4. Alternatively, try mounting to an empty directory in /tmp (e.g. /tmp/ext4_mount).");
         std::process::exit(1);
     }
+
+    println!("Ext4 volume unmounted cleanly.");
 }
+
