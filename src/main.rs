@@ -118,11 +118,15 @@ fn main() {
         println!("\n✅ Ext4 volume mounted successfully at '{}'!", mount_point.display());
         println!("Opening Finder...");
         let sudo_user = std::env::var("SUDO_USER").unwrap_or_default();
-        if !sudo_user.is_empty() {
-            let _ = std::process::Command::new("sudo")
+        let open_status = if !sudo_user.is_empty() {
+            std::process::Command::new("sudo")
                 .args(&["-u", &sudo_user, "open", mount_point.to_str().unwrap()])
-                .status();
+                .status()
         } else {
+            std::process::Command::new("open").arg(&mount_point).status()
+        };
+
+        if open_status.is_err() || !open_status.as_ref().map_or(false, |s| s.success()) {
             let _ = std::process::Command::new("open").arg(&mount_point).status();
         }
 
@@ -165,11 +169,24 @@ fn main() {
         let _ = std::process::Command::new(load_macfuse_bin).status();
     }
 
+    // Enable allow_other in kernel sysctl for macFUSE
+    let _ = std::process::Command::new("sysctl")
+        .arg("-w")
+        .arg("vfs.generic.macfuse.tunables.allow_other=1")
+        .status();
+
     if !mount_point.exists() {
         if let Err(e) = std::fs::create_dir_all(&mount_point) {
             eprintln!("Failed to create mount point directory '{}': {}", mount_point.display(), e);
             std::process::exit(1);
         }
+    }
+
+    if let (Some(uid), Some(gid)) = (sudo_uid, sudo_gid) {
+        let _ = std::process::Command::new("chown")
+            .arg(format!("{}:{}", uid, gid))
+            .arg(&mount_point)
+            .status();
     }
 
     if args.foreground {

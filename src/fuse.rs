@@ -4,7 +4,7 @@ use std::time::Duration;
 use libc::{EINVAL, EIO, ENOENT};
 use fuser::{
     FileAttr, FileType, Filesystem, KernelConfig, ReplyAttr, ReplyCreate, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyStatfs, ReplyWrite, Request,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, ReplyStatfs, ReplyWrite, ReplyXattr, Request,
 };
 
 use crate::ext2fs::{Ext2FileAttr, Ext2FsHandle};
@@ -44,6 +44,12 @@ fn to_fuser_attr(attr: &Ext2FileAttr, owner_uid: Option<u32>, owner_gid: Option<
         FileType::RegularFile
     };
 
+    let perm = if attr.is_dir {
+        (attr.mode & 0o777) | 0o755
+    } else {
+        attr.mode & 0o777
+    };
+
     FileAttr {
         ino: attr.ino,
         size: attr.size,
@@ -53,7 +59,7 @@ fn to_fuser_attr(attr: &Ext2FileAttr, owner_uid: Option<u32>, owner_gid: Option<
         ctime: attr.ctime,
         crtime: attr.ctime,
         kind,
-        perm: (attr.mode & 0o777),
+        perm,
         nlink: attr.nlink,
         uid: owner_uid.unwrap_or(attr.uid),
         gid: owner_gid.unwrap_or(attr.gid),
@@ -71,6 +77,21 @@ impl Filesystem for Ext4FuseFs {
         println!("  Press Ctrl+C to unmount cleanly when done.");
         println!("==================================================\n");
         Ok(())
+    }
+
+    fn access(&mut self, _req: &Request<'_>, _ino: u64, _mask: i32, reply: ReplyEmpty) {
+        reply.ok();
+    }
+
+    fn getxattr(&mut self, _req: &Request<'_>, _ino: u64, _name: &OsStr, _size: u32, reply: ReplyXattr) {
+        #[cfg(target_os = "macos")]
+        reply.error(libc::ENOATTR);
+        #[cfg(not(target_os = "macos"))]
+        reply.error(libc::ENODATA);
+    }
+
+    fn listxattr(&mut self, _req: &Request<'_>, _ino: u64, _size: u32, reply: ReplyXattr) {
+        reply.size(0);
     }
 
     fn statfs(&mut self, _req: &Request<'_>, _ino: u64, reply: ReplyStatfs) {
@@ -349,6 +370,10 @@ pub mod macos_fuse {
         let mut args_vec = vec![CString::new("alpaca-extfs").unwrap()];
         args_vec.push(CString::new("-o").unwrap());
         args_vec.push(CString::new("allow_recursion").unwrap());
+        args_vec.push(CString::new("-o").unwrap());
+        args_vec.push(CString::new("local").unwrap());
+        args_vec.push(CString::new("-o").unwrap());
+        args_vec.push(CString::new("defer_permissions").unwrap());
 
         for opt in options {
             let s = match opt {
