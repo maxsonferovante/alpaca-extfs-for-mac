@@ -2,7 +2,7 @@ class AlpacaExtfs < Formula
   desc "Ext4 filesystem mount utility for macOS integrated with Finder and macFUSE"
   homepage "https://github.com/maxsonferovante/alpaca-extfs-for-mac"
   url "https://github.com/maxsonferovante/alpaca-extfs-for-mac/archive/refs/tags/v0.2.0.tar.gz"
-  sha256 "PLACEHOLDER_SRC_SHA256"
+  sha256 "6319711aabdedd52c2d2d27b92aaefffdcc5bb26d43c40315c32fbc3d615036e"
   license "MIT"
   head "https://github.com/maxsonferovante/alpaca-extfs-for-mac.git", branch: "master"
 
