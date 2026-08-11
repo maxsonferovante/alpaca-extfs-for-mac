@@ -119,3 +119,23 @@ cargo test
        ▼
  [ /dev/rdiskXsY (Raw character block device) ]
 ```
+
+---
+
+## Contributing
+
+Contributions are welcome! If you encounter issues or have feature suggestions:
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/my-feature`).
+3. Ensure all tests pass (`cargo test`).
+4. Commit your changes (`git commit -m 'feat: add my feature'`).
+5. Push to the branch (`git push origin feature/my-feature`).
+6. Open a Pull Request.
+
+---
+
+## License
+
+This project is licensed under the **MIT License**. See the [LICENSE](file:///Users/mferovante/Documents/workspace/alpaca-extfs-for-mac/LICENSE) file for details.
+
