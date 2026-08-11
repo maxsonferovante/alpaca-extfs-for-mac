@@ -1,0 +1,3 @@
+[submodule "vendor/e2fsprogs_src"]
+	path = vendor/e2fsprogs_src
+	url = https://github.com/tytso/e2fsprogs

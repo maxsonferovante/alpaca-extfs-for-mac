@@ -3,7 +3,16 @@ use std::path::PathBuf;
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let vendor_src = manifest_dir.join("vendor").join("e2fsprogs_src");
     let vendor_dir = manifest_dir.join("vendor").join("e2fsprogs");
+
+    if vendor_src.join("lib").join("ext2fs").join("ext2fs.h").exists() {
+        println!(
+            "cargo:warning=Using official Git Submodule e2fsprogs (v1.47.4) from {}",
+            vendor_src.display()
+        );
+    }
+
     let lib_dir = vendor_dir.join("lib");
     let include_dir = vendor_dir.join("include");
 
@@ -13,9 +22,8 @@ fn main() {
     println!("cargo:rustc-link-lib=static=e2p");
     println!("cargo:rustc-link-lib=static=uuid");
 
-
-
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=.gitmodules");
 
     let bindings = bindgen::Builder::default()
         .header(include_dir.join("ext2fs").join("ext2fs.h").to_str().unwrap())
